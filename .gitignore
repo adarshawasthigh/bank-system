@@ -1,0 +1,17 @@
+# virtual environment
+venv/
+
+# database file
+*.sqlite3
+
+# environment variables (never push this!)
+.env
+
+# python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# mac files
+.DS_Store
