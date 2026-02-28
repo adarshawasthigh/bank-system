@@ -59,12 +59,31 @@ async def withdraw(db: AsyncSession, data: DepositWithdrawRequest, user_id: int)
     return txn
 
 async def transfer(db: AsyncSession, data: TransferRequest, user_id: int):
-    from_result = await db.execute(select(Account).where(Account.id == data.from_account_id))
-    from_account = from_result.scalar_one_or_none()
+    # 1. Prevent circular wait by determining a strict locking order
+    first_lock_id = min(data.from_account_id, data.to_account_id)
+    second_lock_id = max(data.from_account_id, data.to_account_id)
 
-    to_result = await db.execute(select(Account).where(Account.id == data.to_account_id))
-    to_account = to_result.scalar_one_or_none()
+    # 2. Lock the first account (smaller ID)
+    res1 = await db.execute(
+        select(Account).where(Account.id == first_lock_id).with_for_update()
+    )
+    account_1 = res1.scalar_one_or_none()
 
+    # 3. Lock the second account (larger ID)
+    res2 = await db.execute(
+        select(Account).where(Account.id == second_lock_id).with_for_update()
+    )
+    account_2 = res2.scalar_one_or_none()
+
+    # 4. Re-assign our locked rows back to the logical 'sender' and 'receiver'
+    if data.from_account_id == first_lock_id:
+        from_account = account_1
+        to_account = account_2
+    else:
+        from_account = account_2
+        to_account = account_1
+
+    # 5. Execute standard validations
     if not from_account:
         raise HTTPException(status_code=404, detail="Source account not found")
     if not to_account:
@@ -78,9 +97,11 @@ async def transfer(db: AsyncSession, data: TransferRequest, user_id: int):
     if Decimal(str(from_account.balance)) < data.amount:
         raise HTTPException(status_code=400, detail="Insufficient funds")
 
+    # 6. Perform the exact, precision math
     from_account.balance = Decimal(str(from_account.balance)) - data.amount
     to_account.balance = Decimal(str(to_account.balance)) + data.amount
 
+    # 7. Create the Double-Entry Ledger records
     debit_txn = Transaction(
         amount=data.amount,
         transaction_type=TransactionType.transfer,
@@ -97,10 +118,12 @@ async def transfer(db: AsyncSession, data: TransferRequest, user_id: int):
     )
     db.add(debit_txn)
     db.add(credit_txn)
+    
+    # 8. Commit the transaction. This permanently saves the data AND releases the locks simultaneously!
     await db.commit()
     await db.refresh(debit_txn)
+    
     return debit_txn
-
 async def get_transaction_history(db: AsyncSession, account_id: int, user_id: int):
     acc_result = await db.execute(select(Account).where(Account.id == account_id))
     account = acc_result.scalar_one_or_none()
