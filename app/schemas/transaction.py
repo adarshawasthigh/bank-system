@@ -27,7 +27,7 @@ class TransferRequest(BaseModel):
 
 class TransactionResponse(BaseModel):
     id: int
-    amount: float
+    amount: Decimal
     transaction_type: TransactionType
     status: TransactionStatus
     description: Optional[str]
