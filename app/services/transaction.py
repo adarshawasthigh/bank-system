@@ -32,7 +32,7 @@ async def deposit(db: AsyncSession, data: DepositWithdrawRequest, user_id: int):
     return txn
 
 async def withdraw(db: AsyncSession, data: DepositWithdrawRequest, user_id: int):
-    result = await db.execute(select(Account).where(Account.id == data.account_id))
+    result = await db.execute(select(Account).where(Account.id == data.account_id).with_for_update())
     account = result.scalar_one_or_none()
 
     if not account:
