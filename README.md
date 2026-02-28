@@ -125,4 +125,4 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 ## 👤 Author
 
 **Adarsh Awasthi**  
-GitHub: [@YOUR_USERNAME](https://github.com/YOUR_USERNAME)
+GitHub: [@adarshawasthigh](https://github.com/adarshawasthigh)
